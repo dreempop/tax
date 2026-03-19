@@ -1,0 +1,54 @@
+import { FormState } from '../types/taxTypes';
+
+export const initialFormState: FormState = {
+  salary: "",
+  bonus: "",
+  otherIncome: "",
+  sso: "",
+  spouse: false,
+  hasChild: false,
+  child: 0,
+  insurance: "",
+  healthInsurance: "",
+  pvd: "",
+  ssf: "",
+  rmf: "",
+};
+
+export const TAX_BRACKETS = [
+  { limit: 150000, rate: 0 },
+  { limit: 300000, rate: 0.05 },
+  { limit: 500000, rate: 0.10 },
+  { limit: 750000, rate: 0.15 },
+  { limit: 1000000, rate: 0.20 },
+  { limit: 2000000, rate: 0.25 },
+  { limit: 5000000, rate: 0.30 },
+  { limit: Infinity, rate: 0.35 }
+];
+
+export const DEDUCTION_LIMITS = {
+  PERSONAL: 60000,
+  SPOUSE: 60000,
+  CHILD_FIRST: 30000,
+  CHILD_PRE2561: 30000,
+  CHILD_POST2561: 60000,
+  PARENT: 30000,
+  DISABLED: 60000,
+  INSURANCE_LIFE: 100000,
+  INSURANCE_HEALTH: 25000,
+  INSURANCE_PARENT: 15000,
+  INSURANCE_ANNUITY: 200000,
+  HOME_INTEREST: 100000,
+  SSO: 9000,
+  PVD_MAX_PERCENT: 0.15,
+  PVD_MAX_AMOUNT: 500000,
+  GPF_MAX_PERCENT: 0.15,
+  NSF_MAX: 13200,
+  DONATION_PERCENT: 0.1,
+  RMF_MAX: 500000,
+  RMF_MAX_PERCENT: 0.3,
+  THAIESG_MAX: 300000,
+  THAIESG_MAX_PERCENT: 0.3,
+  LTF_MAX: 300000,
+  LTF_MAX_PERCENT: 0.3,
+};
