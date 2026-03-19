@@ -1,4 +1,4 @@
-﻿// app/admin/page.tsx
+﻿// app/admin/stats/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -48,7 +48,7 @@ function StatCard({ label, value, sub, icon, accent }: {
   );
 }
 
-export default function AdminDashboard() {
+export default function AdminStatsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -104,7 +104,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-xl font-bold text-white">สถิติการใช้งาน</h1>
           <p className="text-sm text-gray-500 mt-0.5">ภาพรวมระบบ C-Advisor</p>
         </div>
         <button onClick={() => fetchStats(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors">

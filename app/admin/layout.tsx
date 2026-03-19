@@ -43,7 +43,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Dashboard', href: '/admin', icon: <Home className="w-4 h-4" /> },
     { label: 'ผู้ใช้', href: '/admin/users', icon: <Users className="w-4 h-4" /> },
     { label: 'บทความ', href: '/admin/articles', icon: <FileText className="w-4 h-4" /> },
-    { label: 'สถิติ', href: '/admin/stats', icon: <BarChart2 className="w-4 h-4" /> },
   ];
 
   if (!ready) return null;
