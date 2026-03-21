@@ -541,7 +541,7 @@ const Chatbot = () => {
                 />
 
                 <button
-                  onClick={sendMessage}
+                  onClick={() => sendMessage()}
                   disabled={(!inputMessage.trim() && attachedImages.length === 0) || isLoading}
                   className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white transition-all duration-200"
                 >
