@@ -1,6 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const SYSTEM_PROMPT = `
+const prompt = `
 คุณคือผู้เชี่ยวชาญด้านภาษีเงินได้บุคคลธรรมดาของประเทศไทย (Thai Personal Income Tax Expert)
 มีความเชี่ยวชาญในแบบฟอร์มและกระบวนการยื่นภาษีทุกประเภท
 
@@ -91,89 +89,6 @@ const SYSTEM_PROMPT = `
 1. [คำถามเชิงลึกที่สอดคล้องกับเนื้อหาที่เพิ่งตอบ]
 2. [คำถามเชิงนโยบายหรือสถิติที่เกี่ยวข้อง]
 3. [คำถามเชิงการปรับเปลี่ยนพฤติกรรมในชีวิตจริง]
-`;
+`
 
-
-export async function POST(request: NextRequest) {
-  try {
-    const { messages } = await request.json();
-
-    if (!Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
-    }
-
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-    }
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'X-Title': 'C-Advisor Chatbot',
-    };
-
-    // Main answer
-    const mainRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-      }),
-    });
-
-    if (!mainRes.ok) {
-      const errorBody = await mainRes.text();
-      console.error('OpenRouter main error:', mainRes.status, errorBody);
-      return NextResponse.json(
-        { error: `OpenRouter API error: ${mainRes.status}` },
-        { status: mainRes.status }
-      );
-    }
-
-    const mainData = await mainRes.json();
-    const content = mainData.choices?.[0]?.message?.content ?? '';
-
-    // Follow-up questions — based on the actual answer for better relevance
-    let followUps: string[] = [];
-    try {
-      const fuRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          max_tokens: 300,
-          messages: [
-            {
-              role: 'user',
-              content: `สร้างคำถามต่อยอดภาษาไทย 3 ข้อ (ข้อละไม่เกิน 20 คำ) จากเนื้อหานี้: "${content.slice(0, 500)}" ตอบเฉพาะ JSON array: ["q1","q2","q3"]`,
-            },
-          ],
-        }),
-      });
-
-      if (fuRes.ok) {
-        const fuData = await fuRes.json();
-        const raw = (fuData.choices?.[0]?.message?.content ?? '').trim();
-        const match = raw.match(/\[[\s\S]*?\]/);
-        if (match) {
-          const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed)) {
-            followUps = parsed.slice(0, 3).map((q: unknown) => String(q).trim()).filter(q => q.length > 3);
-          }
-        }
-      }
-    } catch {
-      // follow-ups are non-critical; ignore errors
-    }
-
-    return NextResponse.json({ content, followUps });
-  } catch (error) {
-    console.error('Chat route error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+export default prompt
