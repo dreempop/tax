@@ -126,28 +126,6 @@ function saveSessions(sessions: ChatSession[]) {
   } catch { }
 }
 
-const PROMPT_POOL: { keywords: string[]; prompts: string[] }[] = [
-  { keywords: ['ลดหย่อน', 'ค่าลดหย่อน'], prompts: ['ลดหย่อนอะไรได้บ้างในปีนี้?', 'ลดหย่อนบุตรได้เท่าไหร่?', 'ลดหย่อนบิดามารดาทำอย่างไร?'] },
-  { keywords: ['rmf', 'ssf', 'กองทุน', 'thai esg'], prompts: ['RMF กับ SSF ต่างกันอย่างไร?', 'ลงทุน Thai ESG ลดหย่อนได้เท่าไหร่?', 'กองทุนสำรองเลี้ยงชีพนับรวม RMF ไหม?'] },
-  { keywords: ['ประกัน', 'เบี้ยประกัน'], prompts: ['ประกันชีวิตลดหย่อนได้สูงสุดเท่าไหร่?', 'ประกันสุขภาพพ่อแม่ลดหย่อนได้ไหม?', 'ประกันบำนาญให้ผลอย่างไร?'] },
-  { keywords: ['คำนวณ', 'ภาษี', 'เสีย', 'อัตรา'], prompts: ['ช่วยคำนวณภาษีให้หน่อย', 'รายได้เท่าไหร่ถึงต้องเสียภาษี?', 'เงินได้สุทธิคำนวณอย่างไร?'] },
-  { keywords: ['ยื่น', 'แบบ', 'ภ.ง.ด', 'กำหนด'], prompts: ['ยื่นภาษีออนไลน์ทำอย่างไร?', 'กำหนดยื่นภาษีปีนี้เมื่อไหร่?', 'ยื่นเกินกำหนดมีค่าปรับไหม?'] },
-  { keywords: ['บ้าน', 'ดอกเบี้ย', 'กู้'], prompts: ['ดอกเบี้ยบ้านลดหย่อนได้เท่าไหร่?', 'กู้ร่วมลดหย่อนดอกเบี้ยอย่างไร?', 'ซื้อบ้านหลังที่สองลดหย่อนได้ไหม?'] },
-  { keywords: ['freelance', 'ฟรีแลนซ์', 'ค้าขาย', 'ธุรกิจ', '40(8)', '40(2)'], prompts: ['Freelance หักค่าใช้จ่ายได้เท่าไหร่?', 'รายได้จากธุรกิจยื่นแบบไหน?', 'VAT กับภาษีบุคคลธรรมดาต่างกันอย่างไร?'] },
-];
-
-const DEFAULT_PROMPTS = ['วางแผนภาษีอย่างไรให้ประหยัดสุด?', 'ลดหย่อนอะไรได้บ้างในปีนี้?', 'คำนวณภาษีของฉันหน่อย'];
-
-function getSuggestedPrompts(text: string): string[] {
-  const lower = text.toLowerCase();
-  for (const group of PROMPT_POOL) {
-    if (group.keywords.some(k => lower.includes(k))) {
-      return group.prompts;
-    }
-  }
-  return DEFAULT_PROMPTS;
-}
-
 const Chatbot = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -159,7 +137,6 @@ const Chatbot = () => {
   const [attachedImages, setAttachedImages] = useState<{ url: string; name: string }[]>([]);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [followUps, setFollowUps] = useState<string[]>([]);
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -228,7 +205,6 @@ const Chatbot = () => {
     const text = overrideText ?? inputMessage;
     if (!text.trim() && attachedImages.length === 0) return;
     if (!currentSessionId) return;
-    setSuggestedPrompts([]);
 
     const userMessage: Message = {
       role: 'user',
@@ -293,7 +269,6 @@ const Chatbot = () => {
       setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
       // Prefer server-generated followUps; fall back to client-side extraction
       setFollowUps(Array.isArray(data.followUps) && data.followUps.length > 0 ? data.followUps : fqs);
-      setSuggestedPrompts(getSuggestedPrompts(data.content));
     } catch (error: any) {
       const errMessage: Message = { role: 'assistant', content: `เกิดข้อผิดพลาด: ${error.message}`, timestamp: Date.now() };
       const finalMessages = { ...updatedMessages, [`assistant_${errMessage.timestamp}`]: errMessage };
@@ -394,9 +369,8 @@ const Chatbot = () => {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Sub-header */}
-        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-6 sm:py-3 flex items-center justify-between gap-2">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:p-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -404,8 +378,8 @@ const Chatbot = () => {
             >
               <MessageSquare className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
-              {currentSession?.title || 'C-Advisor Chatbot'}
+            <h1 className="text-base sm:text-xl font-semibold text-gray-800 truncate">
+              {currentSession?.title || 'แชทใหม่'}
             </h1>
           </div>
           <div className="hidden sm:block text-sm text-gray-500 flex-shrink-0">ผู้เชี่ยวชาญด้านภาษีประเทศไทย</div>
@@ -495,30 +469,6 @@ const Chatbot = () => {
               </div>
             )}
             <div ref={messagesEndRef} />
-            </div>
-          )}
-          {/* Suggested prompts */}
-          {!isLoading && suggestedPrompts.length > 0 && messages.length > 0 && (
-            <div className="flex flex-col items-start gap-2 pl-1">
-              <p className="text-xs text-gray-400 font-medium">💡 คำถามที่เกี่ยวข้อง</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedPrompts.map((prompt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setInputMessage(prompt);
-                      setSuggestedPrompts([]);
-                      setTimeout(() => textareaRef.current?.focus(), 0);
-                    }}
-                    className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-600 hover:border-green-400 hover:text-green-700 hover:bg-green-50 transition-all duration-150 shadow-sm"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
           </div>
         </div>
 
@@ -596,13 +546,6 @@ const Chatbot = () => {
                   className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white transition-all duration-200"
                 >
                   <Send className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={createNewSession}
-                  title="แชทใหม่"
-                  className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full border border-gray-200 hover:bg-green-50 hover:border-green-300 text-gray-500 hover:text-green-600 transition-all duration-200"
-                >
-                  <Plus className="w-4 h-4" />
                 </button>
               </div>
 
