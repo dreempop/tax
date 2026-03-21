@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Noto_Sans_Thai } from 'next/font/google'
 import './globals.css'
 import Header from './components/Header'
+import TermsModal from './components/TermsModal'
 
 
 const thaiFont = Noto_Sans_Thai({
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="th" className={thaiFont.variable} data-scroll-behavior="smooth">
       <body className={`${thaiFont.className} antialiased`}>
+        <TermsModal />
         <Header />
         <main className="page-enter">
           {children}

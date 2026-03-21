@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -9,50 +9,148 @@ import { Calendar, User, ArrowLeft } from 'lucide-react';
 
 /* ──────────────────────────────────────────────
    Structured-JSON renderer
-   Handles the schema:
-   { document:{...}, sections:[{ title, content, subsections:[{ title, content, items:[{type,text}] }] }] }
+   Handles:
+   1. sections schema: { sections:[{ title, content, subsections:[...] }] }
+   2. generic JSON: any other object / array structure
+   3. plain markdown / text fallback
 ─────────────────────────────────────────────── */
 interface JsonItem   { item_id?: string; type: string; text: string }
 interface JsonSub    { subsection_id?: string; title: string; content?: string; items?: JsonItem[] }
 interface JsonSection{ section_id?: string; section_order?: number; title: string; content?: string; subsections?: JsonSub[] }
 interface JsonDoc    { document?: { title?: string; description?: string }; sections?: JsonSection[] }
 
-function StructuredContent({ raw }: { raw: string }) {
-  let parsed: JsonDoc | null = null;
-  try { parsed = JSON.parse(raw); } catch { /* not JSON */ }
+/* ── generic helpers ── */
+function fmtKey(key: string) {
+  return key.replace(/_/g, ' ');
+}
 
-  if (!parsed || !parsed.sections) {
-    // Fallback: plain markdown
+function RenderValue({ val, depth = 0 }: { val: unknown; depth?: number }): React.ReactNode {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'boolean') return <span>{val ? 'ใช่' : 'ไม่ใช่'}</span>;
+  if (typeof val === 'number' || typeof val === 'string') return <span>{String(val)}</span>;
+
+  if (Array.isArray(val)) {
+    if (val.length === 0) return null;
+    const allPrimitive = val.every(v => typeof v !== 'object' || v === null);
+    if (allPrimitive) {
+      return (
+        <ul>
+          {val.map((v, i) => <li key={i}>{String(v)}</li>)}
+        </ul>
+      );
+    }
     return (
-      <div className="article-body">
-        <ReactMarkdown>{raw.replace(/\\n/g, '\n')}</ReactMarkdown>
+      <div className="space-y-6">
+        {val.map((item, i) => (
+          <div key={i} className="pl-4 border-l-2 border-green-200">
+            <RenderObject obj={item as Record<string, unknown>} depth={depth + 1} />
+          </div>
+        ))}
       </div>
     );
   }
 
+  return <RenderObject obj={val as Record<string, unknown>} depth={depth} />;
+}
+
+function RenderObject({ obj, depth }: { obj: Record<string, unknown>; depth: number }): React.ReactNode {
+  if (!obj) return null;
+  return (
+    <div className="space-y-2">
+      {Object.entries(obj)
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => {
+          const isComplex = v !== null && typeof v === 'object';
+          if (isComplex) {
+            return (
+              <div key={k} className="mt-4">
+                <h3>{fmtKey(k)}</h3>
+                <RenderValue val={v} depth={depth + 1} />
+              </div>
+            );
+          }
+          return (
+            <p key={k}><strong>{fmtKey(k)}:</strong> {String(v)}</p>
+          );
+        })}
+    </div>
+  );
+}
+
+function GenericJsonContent({ data }: { data: Record<string, unknown> }) {
+  const docMeta = data.document as Record<string, unknown> | undefined;
+  const entries = Object.entries(data).filter(([key]) => key !== 'document');
+
   return (
     <div className="article-body space-y-10">
-      {parsed.sections.map((sec, si) => (
-        <section key={sec.section_id ?? si}>
-          <h2>{sec.title}</h2>
-          {sec.content && <p>{sec.content}</p>}
-
-          {sec.subsections?.map((sub, subi) => (
-            <div key={sub.subsection_id ?? subi} className="mt-6">
-              <h3>{sub.title}</h3>
-              {sub.content && <p>{sub.content}</p>}
-
-              {sub.items && sub.items.length > 0 && (
-                <ul>
-                  {sub.items.map((item, ii) => (
-                    <li key={item.item_id ?? ii}>{item.text}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+      {typeof docMeta?.description === 'string' && (
+        <p className="text-gray-600 text-base leading-relaxed">{docMeta.description}</p>
+      )}
+      {entries.map(([key, value]) => (
+        <section key={key}>
+          <h2>{fmtKey(key)}</h2>
+          <RenderValue val={value} depth={0} />
         </section>
       ))}
+    </div>
+  );
+}
+
+function StructuredContent({ raw }: { raw: string }) {
+  let parsed: unknown = null;
+  try { parsed = JSON.parse(raw); } catch { /* not JSON */ }
+
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const doc = parsed as JsonDoc;
+
+    // Case 1: sections schema
+    if (doc.sections && Array.isArray(doc.sections)) {
+      return (
+        <div className="article-body space-y-10">
+          {doc.sections.map((sec, si) => (
+            <section key={sec.section_id ?? si}>
+              <h2>{sec.title}</h2>
+              {sec.content && <p>{sec.content}</p>}
+              {sec.subsections?.map((sub, subi) => (
+                <div key={sub.subsection_id ?? subi} className="mt-6">
+                  <h3>{sub.title}</h3>
+                  {sub.content && <p>{sub.content}</p>}
+                  {sub.items && sub.items.length > 0 && (
+                    <ul>
+                      {sub.items.map((item, ii) => (
+                        <li key={item.item_id ?? ii}>{item.text}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      );
+    }
+
+    // Case 2: generic JSON object
+    return <GenericJsonContent data={parsed as Record<string, unknown>} />;
+  }
+
+  // Case 3: array JSON
+  if (parsed && Array.isArray(parsed)) {
+    return (
+      <div className="article-body space-y-6">
+        {(parsed as unknown[]).map((item, i) => (
+          <div key={i} className="pl-4 border-l-2 border-green-200">
+            <RenderValue val={item} depth={0} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Case 4: plain markdown / text
+  return (
+    <div className="article-body">
+      <ReactMarkdown>{raw.replace(/\\n/g, '\n')}</ReactMarkdown>
     </div>
   );
 }

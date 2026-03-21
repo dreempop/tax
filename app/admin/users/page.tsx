@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 import {
   Search, Pencil, Trash2, Loader2, CheckCircle2, XCircle,
-  AlertTriangle, UserPlus, ShieldCheck, User,
+  AlertTriangle, ShieldCheck, User,
 } from 'lucide-react';
 
 interface UserProfile {
@@ -17,7 +17,6 @@ interface UserProfile {
   website: string | null;
   updated_at: string;
   role: string | null;
-  is_approved: boolean | null;
 }
 
 export default function AdminUsersPage() {
@@ -87,22 +86,6 @@ export default function AdminUsersPage() {
       setUsers(prev => prev.filter(u => u.id !== id));
     } else {
       showToast('error', 'เกิดข้อผิดพลาดในการลบ');
-    }
-  };
-
-  const handleToggleApprove = async (user: UserProfile) => {
-    const updated = { ...user, is_approved: !user.is_approved };
-    const res = await fetch(`/api/admin/users/${user.id}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setUsers(prev => prev.map(u => u.id === data.id ? data : u));
-      showToast('success', data.is_approved ? 'อนุมัติผู้ใช้แล้ว' : 'ยกเลิกการอนุมัติแล้ว');
-    } else {
-      showToast('error', 'เกิดข้อผิดพลาด');
     }
   };
 
@@ -176,7 +159,6 @@ export default function AdminUsersPage() {
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">ผู้ใช้</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3 hidden md:table-cell">Username</th>
                 <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">สิทธิ์</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">สถานะ</th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3 hidden lg:table-cell">อัปเดตล่าสุด</th>
                 <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">จัดการ</th>
               </tr>
@@ -220,23 +202,6 @@ export default function AdminUsersPage() {
                       {user.role === 'admin' ? <ShieldCheck className="w-3 h-3" /> : <User className="w-3 h-3" />}
                       {user.role || 'user'}
                     </span>
-                  </td>
-
-                  {/* Approve toggle */}
-                  <td className="px-4 py-3.5 text-center">
-                    <button
-                      onClick={() => handleToggleApprove(user)}
-                      title={user.is_approved ? 'ยกเลิกการอนุมัติ' : 'อนุมัติ'}
-                      className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                        user.is_approved
-                          ? 'bg-green-900/40 text-green-400 hover:bg-green-900/70'
-                          : 'bg-gray-800 text-gray-500 hover:bg-gray-700'
-                      }`}
-                    >
-                      {user.is_approved
-                        ? <><CheckCircle2 className="w-3 h-3" />อนุมัติแล้ว</>
-                        : <><XCircle className="w-3 h-3" />รออนุมัติ</>}
-                    </button>
                   </td>
 
                   {/* Updated at */}
@@ -337,17 +302,6 @@ export default function AdminUsersPage() {
                   </select>
                 </div>
 
-                {/* Approved toggle */}
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditModal(m => m ? { ...m, is_approved: !m.is_approved } : m)}
-                    className={`relative w-10 h-6 rounded-full transition-colors ${editModal.is_approved ? 'bg-orange-500' : 'bg-gray-700'}`}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${editModal.is_approved ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                  <span className="text-sm text-gray-400">{editModal.is_approved ? 'อนุมัติแล้ว' : 'รออนุมัติ'}</span>
-                </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
