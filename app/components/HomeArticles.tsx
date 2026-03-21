@@ -68,8 +68,8 @@ export default function HomeArticles() {
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {articles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
+          {articles.map((article, i) => (
+            <ArticleCard key={article.id} article={article} priority={i === 0} />
           ))}
         </div>
       </div>
