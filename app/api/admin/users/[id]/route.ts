@@ -47,9 +47,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { username, full_name, website, role, is_approved } = body;
 
   const { supabase } = ctx;
+
+  // Build update object
+  const updateData: Record<string, unknown> = { username, full_name, website, updated_at: new Date().toISOString() };
+  if (role !== undefined) updateData.role = role;
+  if (is_approved !== undefined) updateData.is_approved = !!is_approved;
+
   const { data, error } = await supabase
     .from('profiles')
-    .update({ username, full_name, website, role, is_approved: !!is_approved, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();

@@ -14,9 +14,26 @@ interface ArticleCardProps {
     author_name: string;
     published_at: string;
   };
+  priority?: boolean;
 }
 
-const ArticleCard = ({ article }: ArticleCardProps) => {
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&h=400&fit=crop';
+
+function isValidImageUrl(url: string) {
+  if (!url) return false;
+  try {
+    const { pathname } = new URL(url);
+    return /\.(jpg|jpeg|png|webp|gif|svg|avif)(\?|$)/i.test(pathname) || 
+           url.includes('supabase') ||
+           url.includes('unsplash') ||
+           url.includes('placeholder') ||
+           url.includes('googleusercontent');
+  } catch {
+    return false;
+  }
+}
+
+const ArticleCard = ({ article, priority = false }: ArticleCardProps) => {
   const formattedDate = new Date(article.published_at).toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'long',
@@ -28,12 +45,14 @@ const ArticleCard = ({ article }: ArticleCardProps) => {
       {/* Image */}
       <div className="relative h-48 w-full">
         <Image
-          src={article.image_url || 'https://via.placeholder.com/800x400.png?text=Tax+Article'}
+          src={isValidImageUrl(article.image_url) ? article.image_url : FALLBACK_IMAGE}
           alt={article.title}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           style={{ objectFit: 'cover' }}
           className="transition-transform duration-300 hover:scale-105"
+          priority={priority}
+          loading={priority ? 'eager' : 'lazy'}
         />
         <div className="absolute top-4 left-4">
           <span className="bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full">

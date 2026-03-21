@@ -2,28 +2,25 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 async function verifyAdmin(request: Request) {
   const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
+  if (!auth?.startsWith('Bearer ')) return false;
   const token = auth.split(' ')[1];
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  const isAdminMeta = user.app_metadata?.role === 'admin';
-  if (isAdminMeta) return { user, supabase };
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-  if (profile?.role !== 'admin') return null;
-  return { user, supabase };
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return false;
+  if (user.app_metadata?.role === 'admin') return true;
+  const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
+  return profile?.role === 'admin';
 }
 
 export async function GET(request: Request) {
-  const ctx = await verifyAdmin(request);
-  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { supabase } = ctx;
+  const ok = await verifyAdmin(request);
+  if (!ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Run all counts in parallel
   const [
@@ -32,27 +29,34 @@ export async function GET(request: Request) {
     { count: totalArticles },
     { count: publishedArticles },
     { data: recentArticles },
+    { data: draftArticles },
     { data: recentUsers },
     { data: articlesByCategory },
     { data: monthlyArticles },
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_approved', true),
-    supabase.from('articles').select('*', { count: 'exact', head: true }),
-    supabase.from('articles').select('*', { count: 'exact', head: true }).eq('is_published', true),
-    supabase.from('articles')
+    supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
+    supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).eq('is_approved', true),
+    supabaseAdmin.from('articles').select('*', { count: 'exact', head: true }),
+    supabaseAdmin.from('articles').select('*', { count: 'exact', head: true }).eq('is_published', true),
+    supabaseAdmin.from('articles')
       .select('id, title, published_at, is_published, category')
+      .eq('is_published', true)
       .order('published_at', { ascending: false })
       .limit(5),
-    supabase.from('profiles')
-      .select('id, full_name, username, updated_at, is_approved')
+    supabaseAdmin.from('articles')
+      .select('id, title, category')
+      .eq('is_published', false)
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabaseAdmin.from('profiles')
+      .select('id, full_name, username, updated_at')
       .order('updated_at', { ascending: false })
       .limit(5),
-    supabase.from('articles')
+    supabaseAdmin.from('articles')
       .select('category')
       .eq('is_published', true),
     // monthly articles for the last 6 months
-    supabase.from('articles')
+    supabaseAdmin.from('articles')
       .select('published_at, is_published')
       .gte('published_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()),
   ]);
@@ -100,6 +104,7 @@ export async function GET(request: Request) {
     categories,
     monthly,
     recentArticles: recentArticles ?? [],
+    draftArticles: draftArticles ?? [],
     recentUsers: recentUsers ?? [],
   });
 }

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/app/lib/supabase';
 import {
-  Users, FileText, Eye, EyeOff, CheckCircle2, Clock,
+  Users, FileText, Eye, EyeOff,
   Loader2, BarChart2, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import {
@@ -19,7 +19,7 @@ interface Stats {
   categories: { name: string; count: number }[];
   monthly: { month: string; count: number }[];
   recentArticles: { id: string; title: string; published_at: string; is_published: boolean; category: string }[];
-  recentUsers: { id: string; full_name: string | null; username: string | null; updated_at: string; is_approved: boolean | null }[];
+  recentUsers: { id: string; full_name: string | null; username: string | null; updated_at: string }[];
 }
 
 const ORANGE = '#f97316';
@@ -94,10 +94,7 @@ export default function AdminStatsPage() {
     { name: 'เผยแพร่', value: stats.articles.published },
     { name: 'ฉบับร่าง', value: stats.articles.draft },
   ];
-  const userPieData = [
-    { name: 'อนุมัติแล้ว', value: stats.users.approved },
-    { name: 'รออนุมัติ', value: stats.users.pending },
-  ];
+
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -114,10 +111,10 @@ export default function AdminStatsPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="ผู้ใช้ทั้งหมด"   value={stats.users.total}       sub={`อนุมัติแล้ว ${stats.users.approved} คน`}           icon={<Users className="w-6 h-6" />}   accent="blue" />
-        <StatCard label="รออนุมัติ"        value={stats.users.pending}     sub="บัญชีที่ยังไม่อนุมัติ"                               icon={<Clock className="w-6 h-6" />}   accent="yellow" />
-        <StatCard label="บทความทั้งหมด"    value={stats.articles.total}    sub={`เผยแพร่แล้ว ${stats.articles.published} บทความ`}   icon={<FileText className="w-6 h-6" />} accent="green" />
-        <StatCard label="ฉบับร่าง"         value={stats.articles.draft}    sub="ยังไม่เผยแพร่"                                       icon={<EyeOff className="w-6 h-6" />}  accent="gray" />
+        <StatCard label="ผู้ใช้ทั้งหมด" value={stats.users.total}    sub="ผู้ใช้ในระบบ"                                        icon={<Users className="w-6 h-6" />}   accent="blue" />
+        <StatCard label="บทความทั้งหมด" value={stats.articles.total} sub={`เผยแพร่แล้ว ${stats.articles.published} บทความ`}   icon={<FileText className="w-6 h-6" />} accent="green" />
+        <StatCard label="เผยแพร่แล้ว"    value={stats.articles.published} sub="บทความที่มีคนอ่าน"                               icon={<Eye className="w-6 h-6" />}     accent="orange" />
+        <StatCard label="ฉบับร่าง"         value={stats.articles.draft}     sub="ยังไม่เผยแพร่"                                       icon={<EyeOff className="w-6 h-6" />}  accent="gray" />
       </div>
 
       {/* Line chart — monthly articles */}
@@ -174,18 +171,7 @@ export default function AdminStatsPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">สัดส่วนผู้ใช้</p>
-            <ResponsiveContainer width="100%" height={130}>
-              <PieChart>
-                <Pie data={userPieData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={3} dataKey="value">
-                  {userPieData.map((_, i) => <Cell key={i} fill={PIE_COLORS_USER[i]} />)}
-                </Pie>
-                <Tooltip {...TooltipStyle} />
-                <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ color: '#9ca3af', fontSize: 11 }}>{v}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+
         </div>
       </div>
 
@@ -233,10 +219,7 @@ export default function AdminStatsPage() {
                     </p>
                     <p className="text-xs text-gray-600 mt-0.5">{new Date(u.updated_at).toLocaleDateString('th-TH')}</p>
                   </div>
-                  <span className={`shrink-0 flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${u.is_approved ? 'bg-green-900/40 text-green-400' : 'bg-gray-800 text-gray-500'}`}>
-                    <CheckCircle2 className="w-3 h-3" />
-                    {u.is_approved ? 'อนุมัติ' : 'รอ'}
-                  </span>
+
                 </div>
               ))}
             </div>

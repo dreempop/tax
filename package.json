@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "@heroicons/react": "^2.2.0",
     "@react-email/components": "^0.5.7",
     "@react-email/tailwind": "^1.2.2",
