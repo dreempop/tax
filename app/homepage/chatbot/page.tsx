@@ -57,6 +57,26 @@ async function dbDeleteSession(sessionId: string): Promise<void> {
   await supabase.from('chat_sessions').delete().eq('id', sessionId);
 }
 
+// ── localStorage fallback (guests) ─────────────────────────────────────────
+
+const LS_KEY = 'cadvisor_chat_sessions';
+
+function lsLoadSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function lsSaveSessions(sessions: ChatSession[]) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(sessions)); } catch { }
+}
+
+function lsDeleteSession(sessionId: string) {
+  const updated = lsLoadSessions().filter(s => s.id !== sessionId);
+  lsSaveSessions(updated);
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 function extractFollowUpsAndClean(textRaw: string): { cleaned: string; followUps: string[] } {
@@ -178,7 +198,9 @@ const Chatbot = () => {
       const history = await dbLoadSessions(uid);
       setSessions([freshSession, ...history]);
     } else {
-      setSessions([freshSession]);
+      // guest: restore from localStorage
+      const history = lsLoadSessions();
+      setSessions([freshSession, ...history]);
     }
     setCurrentSessionId(freshId);
     setFollowUps([]);
@@ -272,6 +294,7 @@ const Chatbot = () => {
     const updatedSession = { ...currentSession, title: sessionTitle, messages: updatedMessages, updatedAt: Date.now() };
     setSessions(prev => prev.map(s => s.id === currentSessionId ? updatedSession : s));
     if (userId) dbUpsertSession(updatedSession, userId);
+    else lsSaveSessions(sessions.map(s => s.id === currentSessionId ? updatedSession : s));
     if (!overrideText) setInputMessage('');
     else setInputMessage('');
     setAttachedImages([]);
@@ -315,6 +338,7 @@ const Chatbot = () => {
       const finalSession = { ...updatedSession, messages: finalMessages, updatedAt: Date.now() };
       setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
       if (userId) await dbUpsertSession(finalSession, userId);
+      else lsSaveSessions(sessions.map(s => s.id === currentSessionId ? finalSession : s));
       // Prefer server-generated followUps; fall back to client-side extraction
       setFollowUps(Array.isArray(data.followUps) && data.followUps.length > 0 ? data.followUps : fqs);
     } catch (error: any) {
@@ -326,6 +350,7 @@ const Chatbot = () => {
         const finalSession = { ...updatedSession, messages: finalMessages, updatedAt: Date.now() };
         setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
         if (userId) await dbUpsertSession(finalSession, userId);
+        else lsSaveSessions(sessions.map(s => s.id === currentSessionId ? finalSession : s));
       }
     } finally {
       abortRef.current = null;
@@ -337,6 +362,7 @@ const Chatbot = () => {
     const updatedSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(updatedSessions);
     if (userId) dbDeleteSession(sessionId);
+    else lsDeleteSession(sessionId);
     if (currentSessionId === sessionId) {
       if (updatedSessions.length > 0) {
         setCurrentSessionId(updatedSessions[0].id);
@@ -352,6 +378,8 @@ const Chatbot = () => {
       if (userId) {
         const target = updated.find(s => s.id === sessionId);
         if (target) dbUpsertSession(target, userId);
+      } else {
+        lsSaveSessions(updated);
       }
       return updated;
     });
