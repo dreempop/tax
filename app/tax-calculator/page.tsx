@@ -16,6 +16,9 @@ import { FormState } from './types/taxTypes';
 export interface SummaryState {
   netIncome: number;
   taxAmount: number;
+  totalIncome?: number;
+  expenseDeduction?: number;
+  otherDeductions?: number;
   finalNetIncome?: number;
   finalTaxAmount?: number;
   taxSavings?: number;
@@ -94,7 +97,10 @@ export default function TaxCalculator() {
     const otherIncome = Number(form.otherIncome) || 0;
     const totalIncome = annualIncome + bonus + otherIncome;
 
-    let deductions = 60000;
+    // ค่าใช้จ่าย 50% แต่ไม่เกิน 100,000 บาท (มาตรา 40(1))
+    const expenseDeduction = Math.min(totalIncome * 0.5, 100000);
+
+    let deductions = 60000; // ลดหย่อนส่วนบุคคล
     const sso = Math.min(Number(form.sso) || 0, 9000);
     deductions += sso;
 
@@ -108,6 +114,12 @@ export default function TaxCalculator() {
       deductions += 30000;
       deductions += (Number(form.childPre2561) || 0) * 30000;
       deductions += (Number(form.childPost2561) || 0) * 60000;
+    }
+
+    // ลดหย่อนผู้พิการหรือทุพพลภาพ คนละ 60,000 บาท
+    const disabledKeys = ['disabledFather','disabledMother','disabledRelative','disabledChild','disabledSpouse','disabledSpouseFather','disabledSpouseMother'];
+    for (const key of disabledKeys) {
+      if ((form as any)[key]) deductions += 60000;
     }
 
     const lifeInsurance = Math.min(Number(form.lifeInsurance) || 0, 100000);
@@ -132,7 +144,7 @@ export default function TaxCalculator() {
     const totalDonations = eduDonation * 2 + genDonation;
     deductions += totalDonations;
 
-    const netIncome = Math.max(totalIncome - deductions, 0);
+    const netIncome = Math.max(totalIncome - expenseDeduction - deductions, 0);
     const taxAmount = calculateTaxBracket(netIncome);
 
     const maxFor = (pct: number, cap: number) => Math.min(cap, totalIncome * pct);
@@ -144,6 +156,9 @@ export default function TaxCalculator() {
     setSummary({
       netIncome,
       taxAmount,
+      totalIncome,
+      expenseDeduction,
+      otherDeductions: deductions,
       taxSavedMax: Math.min(taxAmount, remainingDeduction * 0.35),
       taxSavedCalc: 0,
       remainingDeduction,

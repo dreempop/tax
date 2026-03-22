@@ -68,6 +68,9 @@ export interface FormState {
 export interface SummaryState {
   netIncome: number;
   taxAmount: number;
+  totalIncome?: number;
+  expenseDeduction?: number;
+  otherDeductions?: number;
   finalNetIncome?: number;
   finalTaxAmount?: number;
   taxSavings?: number;

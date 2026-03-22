@@ -2,11 +2,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Plus, MessageSquare, X, ImagePlus } from 'lucide-react';
+import { Send, Plus, MessageSquare, X, ImagePlus, Square } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ChatHistory from '@/app/components/ChatHistory';
+import { supabase } from '@/app/lib/supabase';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -23,7 +24,40 @@ interface ChatSession {
   updatedAt: number;
 }
 
-const STORAGE_KEY = 'cadvisor_chat_sessions';
+// ── Supabase helpers ────────────────────────────────────────────────────────
+
+async function dbLoadSessions(userId: string): Promise<ChatSession[]> {
+  const { data, error } = await supabase
+    .from('chat_sessions')
+    .select('id, title, messages, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(row => ({
+    id: row.id,
+    title: row.title,
+    messages: row.messages as { [key: string]: Message },
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  }));
+}
+
+async function dbUpsertSession(session: ChatSession, userId: string): Promise<void> {
+  await supabase.from('chat_sessions').upsert({
+    id: session.id,
+    user_id: userId,
+    title: session.title,
+    messages: session.messages,
+    created_at: new Date(session.createdAt).toISOString(),
+    updated_at: new Date(session.updatedAt).toISOString(),
+  });
+}
+
+async function dbDeleteSession(sessionId: string): Promise<void> {
+  await supabase.from('chat_sessions').delete().eq('id', sessionId);
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
 
 function extractFollowUpsAndClean(textRaw: string): { cleaned: string; followUps: string[] } {
   const text = textRaw || '';
@@ -111,24 +145,10 @@ function sanitizeTail(textRaw: string): string {
   return t.trim();
 }
 
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSessions(sessions: ChatSession[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-  } catch { }
-}
-
 const Chatbot = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -141,26 +161,49 @@ const Chatbot = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Load sessions from localStorage on mount
-  useEffect(() => {
-    const stored = loadSessions();
-    if (stored.length > 0) {
-      setSessions(stored);
-      setCurrentSessionId(stored[0].id);
+  const stopMessage = () => {
+    abortRef.current?.abort();
+  };
+
+  // Initialise: always open a fresh session, load history into sidebar
+  const initForUser = async (uid: string | null) => {
+    const freshId = uuidv4();
+    const freshSession: ChatSession = {
+      id: freshId, title: 'แชทใหม่', messages: {},
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    if (uid) {
+      const history = await dbLoadSessions(uid);
+      setSessions([freshSession, ...history]);
     } else {
-      const id = uuidv4();
-      const first: ChatSession = { id, title: 'แชทใหม่', messages: {}, createdAt: Date.now(), updatedAt: Date.now() };
-      setSessions([first]);
-      setCurrentSessionId(id);
-      saveSessions([first]);
+      setSessions([freshSession]);
     }
-  }, []);
+    setCurrentSessionId(freshId);
+    setFollowUps([]);
+  };
 
-  // Persist sessions to localStorage whenever they change
   useEffect(() => {
-    if (sessions.length > 0) saveSessions(sessions);
-  }, [sessions]);
+    // Get current auth state and start fresh
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null;
+      setUserId(uid);
+      initForUser(uid);
+    });
+
+    // Watch for login / logout events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        const uid = session?.user?.id ?? null;
+        setUserId(uid);
+        initForUser(uid);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const createNewSession = () => {
     const id = uuidv4();
@@ -228,10 +271,13 @@ const Chatbot = () => {
 
     const updatedSession = { ...currentSession, title: sessionTitle, messages: updatedMessages, updatedAt: Date.now() };
     setSessions(prev => prev.map(s => s.id === currentSessionId ? updatedSession : s));
+    if (userId) dbUpsertSession(updatedSession, userId);
     if (!overrideText) setInputMessage('');
     else setInputMessage('');
     setAttachedImages([]);
     setIsLoading(true);
+    const abortController = new AbortController();
+    abortRef.current = abortController;
 
     const messagesForApi = Object.values(updatedMessages)
       .sort((a, b) => a.timestamp - b.timestamp)
@@ -252,7 +298,8 @@ const Chatbot = () => {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messagesForApi })
+        body: JSON.stringify({ messages: messagesForApi }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -267,14 +314,21 @@ const Chatbot = () => {
       const finalMessages = { ...updatedMessages, [`assistant_${assistantMessage.timestamp}`]: assistantMessage };
       const finalSession = { ...updatedSession, messages: finalMessages, updatedAt: Date.now() };
       setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
+      if (userId) await dbUpsertSession(finalSession, userId);
       // Prefer server-generated followUps; fall back to client-side extraction
       setFollowUps(Array.isArray(data.followUps) && data.followUps.length > 0 ? data.followUps : fqs);
     } catch (error: any) {
-      const errMessage: Message = { role: 'assistant', content: `เกิดข้อผิดพลาด: ${error.message}`, timestamp: Date.now() };
-      const finalMessages = { ...updatedMessages, [`assistant_${errMessage.timestamp}`]: errMessage };
-      const finalSession = { ...updatedSession, messages: finalMessages, updatedAt: Date.now() };
-      setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
+      if (error.name === 'AbortError') {
+        // User stopped — keep messages as-is, no error bubble
+      } else {
+        const errMessage: Message = { role: 'assistant', content: `เกิดข้อผิดพลาด: ${error.message}`, timestamp: Date.now() };
+        const finalMessages = { ...updatedMessages, [`assistant_${errMessage.timestamp}`]: errMessage };
+        const finalSession = { ...updatedSession, messages: finalMessages, updatedAt: Date.now() };
+        setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
+        if (userId) await dbUpsertSession(finalSession, userId);
+      }
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
     }
   };
@@ -282,6 +336,7 @@ const Chatbot = () => {
   const deleteSession = (sessionId: string) => {
     const updatedSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(updatedSessions);
+    if (userId) dbDeleteSession(sessionId);
     if (currentSessionId === sessionId) {
       if (updatedSessions.length > 0) {
         setCurrentSessionId(updatedSessions[0].id);
@@ -292,7 +347,14 @@ const Chatbot = () => {
   };
 
   const updateSessionTitle = (sessionId: string, title: string) => {
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
+    setSessions(prev => {
+      const updated = prev.map(s => s.id === sessionId ? { ...s, title } : s);
+      if (userId) {
+        const target = updated.find(s => s.id === sessionId);
+        if (target) dbUpsertSession(target, userId);
+      }
+      return updated;
+    });
     setEditingTitle(null);
     setNewTitle('');
   };
@@ -314,7 +376,7 @@ const Chatbot = () => {
     : [];
 
   return (
-    <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
+    <div className="flex h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-4.5rem)] bg-gray-50 overflow-hidden">
 
       {/* Mobile overlay backdrop */}
       {sidebarOpen && (
@@ -370,7 +432,7 @@ const Chatbot = () => {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-3 py-3 sm:p-4 flex items-center justify-between gap-2">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 py-3 sm:p-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -473,7 +535,7 @@ const Chatbot = () => {
         </div>
 
         {/* Input Area */}
-        <div className="p-3 sm:p-4 bg-gray-50">
+        <div className="p-2 sm:p-3 pb-3 sm:pb-4 bg-gray-50">
           <div className="max-w-3xl mx-auto">
             <div className="bg-white border border-gray-200 rounded-3xl shadow-sm px-4 sm:px-5 pt-3 sm:pt-4 pb-2.5 sm:pb-3 focus-within:border-gray-300 focus-within:shadow-md transition-all duration-200">
 
@@ -540,13 +602,23 @@ const Chatbot = () => {
                   disabled={isLoading}
                 />
 
-                <button
-                  onClick={() => sendMessage()}
-                  disabled={(!inputMessage.trim() && attachedImages.length === 0) || isLoading}
-                  className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white transition-all duration-200"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
+                {isLoading ? (
+                  <button
+                    onClick={stopMessage}
+                    className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-400 text-white transition-all duration-200"
+                    title="หยุด"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => sendMessage()}
+                    disabled={!inputMessage.trim() && attachedImages.length === 0}
+                    className="mt-0.5 w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white transition-all duration-200"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               <input

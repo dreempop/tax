@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { FormState, SummaryState } from '../../types/taxTypes';
-import { formatCurrency } from '../../utils/formatters';
-import { ResultRow } from '../ui/TaxUIComponents';
 
 interface Step6Props {
   form: FormState;
@@ -13,188 +11,174 @@ interface Step6Props {
   resetForm: () => void;
 }
 
-// Function to determine tax bracket
-const getTaxBracket = (income: number): { bracket: string; rate: string; range: string } => {
-  if (income <= 150000) {
-    return { 
-      bracket: "ขั้นที่ 1", 
-      rate: "0%", 
-      range: "0 - 150,000 บาท" 
-    };
-  } else if (income <= 300000) {
-    return { 
-      bracket: "ขั้นที่ 2", 
-      rate: "5%", 
-      range: "150,001 - 300,000 บาท" 
-    };
-  } else if (income <= 500000) {
-    return { 
-      bracket: "ขั้นที่ 3", 
-      rate: "10%", 
-      range: "300,001 - 500,000 บาท" 
-    };
-  } else if (income <= 1000000) {
-    return { 
-      bracket: "ขั้นที่ 4", 
-      rate: "15%", 
-      range: "500,001 - 1,000,000 บาท" 
-    };
-  } else if (income <= 2000000) {
-    return { 
-      bracket: "ขั้นที่ 5", 
-      rate: "20%", 
-      range: "1,000,001 - 2,000,000 บาท" 
-    };
-  } else if (income <= 5000000) {
-    return { 
-      bracket: "ขั้นที่ 6", 
-      rate: "25%", 
-      range: "2,000,001 - 5,000,000 บาท" 
-    };
-  } else if (income <= 10000000) {
-    return { 
-      bracket: "ขั้นที่ 7", 
-      rate: "30%", 
-      range: "5,000,001 - 10,000,000 บาท" 
-    };
-  } else if (income <= 20000000) {
-    return { 
-      bracket: "ขั้นที่ 8", 
-      rate: "35%", 
-      range: "10,000,001 - 20,000,000 บาท" 
-    };
-  } else {
-    return { 
-      bracket: "ขั้นที่ 9", 
-      rate: "35%", 
-      range: "เกิน 20,000,000 บาท" 
-    };
+const BRACKETS = [
+  { prev: 0,        limit: 150000,   rate: 0    },
+  { prev: 150000,   limit: 300000,   rate: 0.05 },
+  { prev: 300000,   limit: 500000,   rate: 0.10 },
+  { prev: 500000,   limit: 750000,   rate: 0.15 },
+  { prev: 750000,   limit: 1000000,  rate: 0.20 },
+  { prev: 1000000,  limit: 2000000,  rate: 0.25 },
+  { prev: 2000000,  limit: 5000000,  rate: 0.30 },
+  { prev: 5000000,  limit: Infinity, rate: 0.35 },
+];
+
+function getBracketRows(netIncome: number) {
+  const rows: { range: string; rateLabel: string; taxInBracket: number; cumTax: number; isLast: boolean }[] = [];
+  let cumTax = 0;
+  for (const { prev, limit, rate } of BRACKETS) {
+    if (netIncome <= prev) break;
+    const taxable = Math.min(netIncome, limit) - prev;
+    const tax = Math.round(taxable * rate);
+    cumTax += tax;
+    const isLast = netIncome <= limit;
+    const maxDisplay = isLast ? netIncome : limit;
+    rows.push({
+      range: `${prev.toLocaleString('th-TH')} - ${maxDisplay === Infinity ? 'ขึ้นไป' : maxDisplay.toLocaleString('th-TH')}`,
+      rateLabel: rate === 0 ? 'ยกเว้น' : `${rate * 100}%`,
+      taxInBracket: tax,
+      cumTax,
+      isLast,
+    });
+    if (isLast) break;
   }
-};
+  return rows;
+}
 
-const Step6: React.FC<Step6Props> = ({ 
-  form, 
-  handleChange, 
-  errors, 
-  summary, 
-  calculateFinalTax, 
-  back, 
-  resetForm 
-}) => {
-  const [showFinalResults, setShowFinalResults] = useState(false);
-  
-  // Get tax bracket information
-  const taxBracketInfo = getTaxBracket(summary.netIncome);
+const Step6: React.FC<Step6Props> = ({ form, summary, back, resetForm }) => {
+  const { netIncome, taxAmount } = summary;
+  const totalIncome    = (summary as any).totalIncome    ?? netIncome;
+  const expenseDeduct  = (summary as any).expenseDeduction ?? 0;
+  const otherDeduct    = (summary as any).otherDeductions  ?? 0;
+  const rows = getBracketRows(netIncome);
+  const monthlySalary  = Number(form.salary) || 0;
 
-  // Handle final tax calculation
-  const handleCalculateFinalTax = () => {
-    calculateFinalTax();
-    setShowFinalResults(true);
+  const handleCopy = () => {
+    const txt = [
+      `รายได้ทั้งปี: ${totalIncome.toLocaleString('th-TH')} บาท`,
+      `หักค่าใช้จ่าย: ${expenseDeduct.toLocaleString('th-TH')} บาท`,
+      `หักลดหย่อนรวม: ${otherDeduct.toLocaleString('th-TH')} บาท`,
+      `เงินได้สุทธิ: ${netIncome.toLocaleString('th-TH')} บาท`,
+      `ภาษีที่ต้องจ่าย: ${taxAmount.toLocaleString('th-TH')} บาทต่อปี`,
+    ].join('\n');
+    navigator.clipboard?.writeText(txt).catch(() => {});
   };
 
   return (
-    <div className="max-w-3xl mx-auto bg-white/70 p-4 sm:p-8 rounded-2xl shadow-lg space-y-6">
-      <h2 className="text-2xl font-bold text-center text-green-700 mb-4">
-        คำนวณภาษี
-      </h2>
+    <div className="max-w-3xl mx-auto space-y-8">
 
-      {/* 1. Summary section */}
-      <div className="space-y-2 border-b pb-4">
-        <ResultRow label="รวมเงินได้สุทธิ" value={summary.netIncome} isBold />
-        <ResultRow label="ภาษีที่ต้องจ่าย" value={summary.taxAmount} isBold isRed />
+      {/* ─── Section 1: การคำนวณเงินได้สุทธิ ─────────── */}
+      <div className="space-y-3">
+        <h3 className="font-bold text-gray-900">1. การคำนวณเงินได้สุทธิ</h3>
+        <p className="text-sm text-gray-500">
+          ก่อนจะคำนวณภาษี เราต้องหาเงินได้สุทธิด้วยค่าใช้จ่ายและค่าลดหย่อนพื้นฐานก่อน:
+        </p>
+        <ul className="text-sm space-y-2">
+          <li className="flex justify-between pb-2 border-b">
+            <span>
+              รายได้ทั้งปี:{' '}
+              <span className="text-gray-400">{monthlySalary.toLocaleString('th-TH')} × 12</span>
+            </span>
+            <span className="font-medium">{totalIncome.toLocaleString('th-TH')} บาท</span>
+          </li>
+          <li className="flex justify-between pb-2 border-b">
+            <span>
+              หักค่าใช้จ่าย{' '}
+              <span className="text-gray-400">(50% แต่ไม่เกิน 100,000 บาท)</span>
+            </span>
+            <span className="font-medium text-red-500">− {expenseDeduct.toLocaleString('th-TH')} บาท</span>
+          </li>
+          <li className="flex justify-between pb-2 border-b">
+            <span>หักลดหย่อนส่วนตัว</span>
+            <span className="font-medium text-red-500">− {otherDeduct.toLocaleString('th-TH')} บาท</span>
+          </li>
+          <li className="flex justify-between font-bold text-gray-900 pt-1">
+            <span>เงินได้สุทธิเหลือ</span>
+            <span>{netIncome.toLocaleString('th-TH')} บาท</span>
+          </li>
+        </ul>
       </div>
 
-      {/* 2. Tax bracket information */}
-      <div className="bg-blue-50 p-4 rounded-lg">
-        <h3 className="text-lg font-semibold text-blue-700 mb-3">ขั้นบรรไดภาษี</h3>
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span className="font-medium">ขั้นบรรได:</span>
-            <span className="font-bold">{taxBracketInfo.bracket}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="font-medium">อัตราภาษี:</span>
-            <span className="font-bold">{taxBracketInfo.rate}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="font-medium">ช่วงรายได้:</span>
-            <span className="font-bold">{taxBracketInfo.range}</span>
-          </div>
+      {/* ─── Section 2: ตารางภาษีขั้นบันได ─────────── */}
+      <div className="space-y-3">
+        <h3 className="font-bold text-gray-900">2. ตารางคำนวณภาษีแบบขั้นบันได</h3>
+        <p className="text-sm text-gray-500">
+          จากเงินได้สุทธิ{' '}
+          <strong className="text-gray-700">{netIncome.toLocaleString('th-TH')} บาท</strong>{' '}
+          จะถูกนำมาคิดภาษีตามอัตราขั้นบรรไดภาษีดังนี้:
+        </p>
+
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left font-semibold text-gray-600">ช่วงเงินได้สุทธิ</th>
+                <th className="px-4 py-2 text-center font-semibold text-gray-600">อัตราภาษี</th>
+                <th className="px-4 py-2 text-right font-semibold text-gray-600">ภาษีในแต่ละขั้น</th>
+                <th className="px-4 py-2 text-right font-semibold text-gray-600">ภาษีสะสม</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((row, i) => (
+                <tr key={i} className={row.isLast ? 'bg-emerald-50' : ''}>
+                  <td className="px-4 py-2">{row.range}</td>
+                  <td className="px-4 py-2 text-center">{row.rateLabel}</td>
+                  <td className="px-4 py-2 text-right">{row.taxInBracket.toLocaleString('th-TH')}</td>
+                  <td className={`px-4 py-2 text-right ${row.isLast ? 'font-bold text-emerald-700' : ''}`}>
+                    {row.cumTax.toLocaleString('th-TH')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button className="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
+            📊 ส่งออกไปยังอีสิต
+          </button>
+          <button
+            onClick={handleCopy}
+            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+            title="คัดลอก"
+          >
+            📋
+          </button>
+        </div>
+
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-5 py-3 text-center text-sm text-emerald-800">
+          สรุปภาษีที่ต้องจ่าย: ประมาณ{' '}
+          <strong>{taxAmount.toLocaleString('th-TH')} บาทต่อปี</strong>
+          {' '}(หรือเฉลี่ยเดือนละประมาณ{' '}
+          <strong>{Math.round(taxAmount / 12).toLocaleString('th-TH')} บาท</strong>)
         </div>
       </div>
 
-      {/* 3. Tax bracket table */}
-      <div className="overflow-x-auto">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">ตารางขั้นบรรไดภาษี</h3>
-        <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">ขั้นที่</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">อัตราภาษี</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">ช่วงรายได้ (บาท)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            <tr className={summary.netIncome <= 150000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 1</td>
-              <td className="px-4 py-2 text-sm">0%</td>
-              <td className="px-4 py-2 text-sm">0 - 150,000</td>
-            </tr>
-            <tr className={summary.netIncome > 150000 && summary.netIncome <= 300000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 2</td>
-              <td className="px-4 py-2 text-sm">5%</td>
-              <td className="px-4 py-2 text-sm">150,001 - 300,000</td>
-            </tr>
-            <tr className={summary.netIncome > 300000 && summary.netIncome <= 500000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 3</td>
-              <td className="px-4 py-2 text-sm">10%</td>
-              <td className="px-4 py-2 text-sm">300,001 - 500,000</td>
-            </tr>
-            <tr className={summary.netIncome > 500000 && summary.netIncome <= 1000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 4</td>
-              <td className="px-4 py-2 text-sm">15%</td>
-              <td className="px-4 py-2 text-sm">500,001 - 1,000,000</td>
-            </tr>
-            <tr className={summary.netIncome > 1000000 && summary.netIncome <= 2000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 5</td>
-              <td className="px-4 py-2 text-sm">20%</td>
-              <td className="px-4 py-2 text-sm">1,000,001 - 2,000,000</td>
-            </tr>
-            <tr className={summary.netIncome > 2000000 && summary.netIncome <= 5000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 6</td>
-              <td className="px-4 py-2 text-sm">25%</td>
-              <td className="px-4 py-2 text-sm">2,000,001 - 5,000,000</td>
-            </tr>
-            <tr className={summary.netIncome > 5000000 && summary.netIncome <= 10000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 7</td>
-              <td className="px-4 py-2 text-sm">30%</td>
-              <td className="px-4 py-2 text-sm">5,000,001 - 10,000,000</td>
-            </tr>
-            <tr className={summary.netIncome > 10000000 && summary.netIncome <= 20000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 8</td>
-              <td className="px-4 py-2 text-sm">35%</td>
-              <td className="px-4 py-2 text-sm">10,000,001 - 20,000,000</td>
-            </tr>
-            <tr className={summary.netIncome > 20000000 ? "bg-green-100" : ""}>
-              <td className="px-4 py-2 text-sm">ขั้นที่ 9</td>
-              <td className="px-4 py-2 text-sm">35%</td>
-              <td className="px-4 py-2 text-sm">เกิน 20,000,000</td>
-            </tr>
-          </tbody>
-        </table>
+      {/* ─── Section 3: ตัวช่วยลดหย่อนเพิ่มเติม ─────── */}
+      <div className="space-y-3">
+        <h3 className="font-bold text-gray-900">3. ตัวช่วยลดหย่อนเพิ่มเติม</h3>
+        <p className="text-sm text-gray-500">
+          ตัวเลข {taxAmount.toLocaleString('th-TH')} บาทนี้คือ &quot;เพดานสูงสุด&quot; ในกรณีที่คุณไม่มีตัวช่วยลดหย่อนอื่นๆ
+          เลย แต่ในความเป็นจริงคุณสามารถจ่ายภาษีน้อยลงได้หากมีรายการต่อไปนี้:
+        </p>
+        <ul className="text-sm text-gray-700 space-y-1.5 list-disc list-inside">
+          <li><strong>ประกันสังคม:</strong> ลดหย่อนได้ตามจริง (สูงสุด 9,000 บาทต่อปี)</li>
+          <li><strong>ค่าลดหย่อนบุตร/ดูแลบิดามารดา:</strong> (30,000 บาทต่อคน)</li>
+          <li><strong>กองทุนลดหย่อนภาษี:</strong> เช่น SSF, RMF หรือ Thai ESG</li>
+          <li><strong>เบี้ยประกันชีวิต/ประกันสุขภาพ:</strong> ตามที่จ่ายจริงแต่ไม่เกินที่กฎหมายกำหนด</li>
+        </ul>
       </div>
 
-      {/* 4. Navigation buttons */}
-      <div className="flex justify-center gap-4 mt-8">
+      {/* ─── Buttons ──────────────────────────────────── */}
+      <div className="flex justify-center gap-6 mt-8">
         <button
           onClick={back}
-          className="px-8 py-3 border border-emerald-500 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-all"
+          className="px-10 py-3 rounded-full border border-emerald-400 text-emerald-500 font-semibold hover:bg-emerald-50 transition-all"
         >
           ย้อนกลับ
         </button>
         <button
           onClick={resetForm}
-          className="px-8 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all"
+          className="px-10 py-3 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-semibold hover:opacity-90 shadow-md transition-all"
         >
           เริ่มใหม่
         </button>

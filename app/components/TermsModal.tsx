@@ -1,20 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
 
-const TERMS_KEY = 'cadvisor_terms_accepted';
-
 export default function TermsModal() {
-  const [status, setStatus] = useState<'loading' | 'show' | 'accepted' | 'declined'>('loading');
-
-  useEffect(() => {
-    const accepted = localStorage.getItem(TERMS_KEY);
-    setStatus(accepted === 'true' ? 'accepted' : 'show');
-  }, []);
+  const [status, setStatus] = useState<'show' | 'accepted' | 'declined'>('show');
 
   const handleAccept = () => {
-    localStorage.setItem(TERMS_KEY, 'true');
     setStatus('accepted');
   };
 
@@ -22,7 +14,7 @@ export default function TermsModal() {
     setStatus('declined');
   };
 
-  if (status === 'loading' || status === 'accepted') return null;
+  if (status === 'accepted') return null;
 
   if (status === 'declined') {
     return (

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Noto_Sans_Thai } from 'next/font/google'
+import { Noto_Sans_Thai } from 'next/font/google'
 import './globals.css'
 import Header from './components/Header'
 import TermsModal from './components/TermsModal'
@@ -9,7 +9,7 @@ const thaiFont = Noto_Sans_Thai({
   weight: ['300', '400', '500', '600', '700', '800'],
   subsets: ['thai', 'latin'],
   variable: '--font-thai',
-  display: 'swap',
+  display: 'optional',
 })
 
 export const metadata: Metadata = {

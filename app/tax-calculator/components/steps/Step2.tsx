@@ -32,10 +32,9 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
           </label>
           <select
             className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-gray-700"
-            value={form.maritalStatus || ""}
+            value={form.maritalStatus || "single"}
             onChange={(e) => handleChange("maritalStatus", e.target.value)}
           >
-            <option value="">กรุณาเลือกสถานะ</option>
             <option value="single">โสด</option>
             <option value="divorced">หย่า</option>
             <option value="married-separate">คู่สมรสมีเงินได้ (แยกยื่น)</option>
@@ -57,10 +56,15 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
         </div>
       </div>
 
-      {/* === ลดหย่อนคู่สมรส (เฉพาะคู่สมรสไม่มีเงินได้) === */}
-      {form.maritalStatus === "married-joint" && (
+      {/* === ลดหย่อนคู่สมรส (เฉพาะสถานะที่มีคู่สมรส) === */}
+      {form.maritalStatus === "married-separate" && (
         <p className="text-sm text-emerald-700 mt-3">
           ลดหย่อนคู่สมรสที่ไม่มีเงินได้ 60,000 บาท
+        </p>
+      )}
+      {form.maritalStatus === "married-joint" && (
+        <p className="text-sm text-emerald-700 mt-3">
+          ลดหย่อนคู่สมรสไม่มีรายได้ 60,000 บาท
         </p>
       )}
 
@@ -140,7 +144,7 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
             )}
           </div>
           <p className="text-sm text-emerald-700 mt-2">
-            คนละ 30,000 บาท (อายุเกิน 60 ปี และมีรายได้ไม่เกิน 30,000 บาท/ปี)
+            คนละ 30,000 บาท (บิดามารดาต้องมีอายุเกิน 60 ปี และมีเงินได้ไม่เกิน 30,000 บาทต่อปี) (ได้ทั้งบิดา มารดาของตนเอง และคู่สมรส)
           </p>
         </div>
 
@@ -243,7 +247,7 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
             {[
               ["disabledFather", "บิดา"],
               ["disabledMother", "มารดา"],
-              ["disabledRelative", "ญาติ"],
+              ["disabledRelative", "ญาติ (เช่น พี่,น้อง ฯลฯ)"],
             ].map(([key, label]) => (
               <label key={key} className="flex items-center gap-2">
                 <input
@@ -270,6 +274,14 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
                 <span>บุตร</span>
               </label>
             )}
+          {(form.maritalStatus === "divorced" ||
+            form.maritalStatus === "married-separate" ||
+            form.maritalStatus === "married-joint") && (
+            <p className="text-sm text-emerald-700 mt-2">
+              กรณีบิดา, มารดา, คู่สมรส, บิดาคู่สมรส , มารดาคู่สมรส และบุตรของตนเอง<br />
+              หากเป็นผู้ดูแลเพียง 1 คนนั้น ลดหย่อนได้คนละ 60,000 บาท (ต้องมีบัตรประจำตัวคนพิการ และไม่มีรายได้)
+            </p>
+          )}
         </div>
 
         {/* คู่สมรสผู้พิการ */}
@@ -277,7 +289,7 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
           form.maritalStatus === "married-joint") && (
           <div>
             <p className="font-semibold text-gray-800 mb-2">
-              ลดหย่อนผู้พิการหรือทุพพลภาพ (คู่สมรส)
+              ลดหย่อนผู้พิการหรือทุพพลภาพ (คู่สมรสไม่มีเงินได้)
             </p>
             {[
               ["disabledSpouse", "คู่สมรส"],
@@ -295,7 +307,8 @@ const Step2FamilyDeduction: React.FC<Step2FamilyDeductionProps> = ({
               </label>
             ))}
             <p className="text-sm text-emerald-700 mt-2">
-              หากเป็นผู้ดูแลเพียง 1 คน ลดหย่อนได้คนละ 60,000 บาท
+              กรณีบิดา, มารดา, คู่สมรส, บิดาคู่สมรส , มารดาคู่สมรส และบุตรของตนเอง<br />
+              หากเป็นผู้ดูแลเพียง 1 คนนั้น ลดหย่อนได้คนละ 60,000 บาท (ต้องมีบัตรประจำตัวคนพิการ และไม่มีรายได้)
             </p>
           </div>
         )}
