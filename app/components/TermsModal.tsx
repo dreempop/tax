@@ -1,10 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { ShieldCheck, X } from 'lucide-react';
 
 export default function TermsModal() {
+  const pathname = usePathname();
   const [status, setStatus] = useState<'show' | 'accepted' | 'declined'>('show');
+
+  if (pathname?.startsWith('/admin')) return null;
 
   const handleAccept = () => {
     setStatus('accepted');
