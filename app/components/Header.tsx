@@ -102,9 +102,14 @@ const Header = () => {
   }, []);
 
   // จัดการการออกจากระบบ
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    supabase.auth.signOut();
+    setUser(null);
+    setIsLoggedIn(false);
+    setProfileAvatarUrl(null);
+    setNavItems(baseNavItems);
     setDropdownOpen(false);
+    setMobileMenuOpen(false);
     router.push('/');
   };
 
