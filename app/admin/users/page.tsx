@@ -14,7 +14,6 @@ interface UserProfile {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  website: string | null;
   updated_at: string;
   role: string | null;
 }
@@ -274,17 +273,6 @@ export default function AdminUsersPage() {
                     type="text"
                     value={editModal.username ?? ''}
                     onChange={e => setEditModal(m => m ? { ...m, username: e.target.value } : m)}
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Website */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Website</label>
-                  <input
-                    type="text"
-                    value={editModal.website ?? ''}
-                    onChange={e => setEditModal(m => m ? { ...m, website: e.target.value } : m)}
                     className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>
