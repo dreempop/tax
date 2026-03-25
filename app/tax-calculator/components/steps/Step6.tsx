@@ -132,19 +132,6 @@ const Step6: React.FC<Step6Props> = ({ form, summary, back, resetForm }) => {
           </table>
         </div>
 
-        <div className="flex items-center justify-between">
-          <button className="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
-            📊 ส่งออกไปยังอีสิต
-          </button>
-          <button
-            onClick={handleCopy}
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-            title="คัดลอก"
-          >
-            📋
-          </button>
-        </div>
-
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-5 py-3 text-center text-sm text-emerald-800">
           สรุปภาษีที่ต้องจ่าย: ประมาณ{' '}
           <strong>{taxAmount.toLocaleString('th-TH')} บาทต่อปี</strong>
